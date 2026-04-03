@@ -1,0 +1,144 @@
+from flask import Flask, jsonify, send_from_directory
+import yfinance as yf
+import ta
+
+app = Flask(__name__, static_folder="static")
+
+# ==========================
+# SIGNAL LOGIC (API)
+# ==========================
+def get_signal():
+    data = yf.download("EURUSD=X", interval="5m", period="1d")
+
+    data['ema50'] = ta.trend.ema_indicator(data['Close'], window=50)
+    data['rsi'] = ta.momentum.rsi(data['Close'], window=14)
+
+    macd = ta.trend.MACD(data['Close'])
+    data['macd'] = macd.macd()
+    data['macd_signal'] = macd.macd_signal()
+
+    last = data.iloc[-1]
+    prev = data.iloc[-2]
+
+    trend = "UP" if last['Close'] > last['ema50'] else "DOWN"
+
+    if prev['macd'] < prev['macd_signal'] and last['macd'] > last['macd_signal']:
+        macd_cross = "BULLISH"
+    elif prev['macd'] > prev['macd_signal'] and last['macd'] < last['macd_signal']:
+        macd_cross = "BEARISH"
+    else:
+        macd_cross = "NONE"
+
+    signal = "WAIT"
+    if trend == "UP" and macd_cross == "BULLISH" and last['rsi'] < 40:
+        signal = "BUY"
+    elif trend == "DOWN" and macd_cross == "BEARISH" and last['rsi'] > 60:
+        signal = "SELL"
+
+    return {
+        "signal": signal,
+        "trend": trend,
+        "rsi": round(last['rsi'], 2),
+        "macd": macd_cross
+    }
+
+# ==========================
+# API ROUTE
+# ==========================
+@app.route('/api/signal')
+def api_signal():
+    return jsonify(get_signal())
+
+# ==========================
+# SERVE MOBILE APP (PWA)
+# ==========================
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
+
+@app.route('/<path:path>')
+def static_files(path):
+    return send_from_directory('static', path)
+
+# ==========================
+# RUN APP
+# ==========================
+if __name__ == '__main__':
+    app.run(debug=True)
+
+# ==========================
+# FRONTEND (CREATE /static/index.html)
+# ==========================
+"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Bot Pro</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 20px;
+      padding: 30px;
+      margin-top: 50px;
+    }
+    .signal {
+      font-size: 50px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 Trading Bot Pro</h1>
+  <div class="card">
+    <div id="signal" class="signal">...</div>
+    <p id="trend"></p>
+    <p id="rsi"></p>
+    <p id="macd"></p>
+  </div>
+
+<script>
+async function loadSignal() {
+  const res = await fetch('/api/signal');
+  const data = await res.json();
+
+  document.getElementById('signal').innerText = data.signal;
+  document.getElementById('trend').innerText = "Trend: " + data.trend;
+  document.getElementById('rsi').innerText = "RSI: " + data.rsi;
+  document.getElementById('macd').innerText = "MACD: " + data.macd;
+
+  let color = "gray";
+  if (data.signal === "BUY") color = "#00ff99";
+  if (data.signal === "SELL") color = "#ff4d4d";
+
+  document.getElementById('signal').style.color = color;
+}
+
+setInterval(loadSignal, 60000);
+loadSignal();
+</script>
+</body>
+</html>
+"""
+
+# ==========================
+# MANIFEST (CREATE /static/manifest.json)
+# ==========================
+"""
+{
+  "name": "Trading Bot Pro",
+  "short_name": "Bot",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a"
+}
+"""
