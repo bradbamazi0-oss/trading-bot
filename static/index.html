@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Bot Pro</title>
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 20px;
+      padding: 30px;
+      margin-top: 50px;
+    }
+    .signal {
+      font-size: 50px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 Trading Bot Pro</h1>
+  <div class="card">
+    <div id="signal" class="signal">Chargement...</div>
+    <p id="trend"></p>
+    <p id="rsi"></p>
+    <p id="macd"></p>
+  </div>
+
+<script>
+async function loadSignal() {
+  const res = await fetch('/api/signal');
+  const data = await res.json();
+
+  document.getElementById('signal').innerText = data.signal;
+  document.getElementById('trend').innerText = "Trend: " + data.trend;
+  document.getElementById('rsi').innerText = "RSI: " + data.rsi;
+  document.getElementById('macd').innerText = "MACD: " + data.macd;
+
+  let color = "gray";
+  if (data.signal === "BUY") color = "#00ff99";
+  if (data.signal === "SELL") color = "#ff4d4d";
+
+  document.getElementById('signal').style.color = color;
+}
+
+setInterval(loadSignal, 60000);
+loadSignal();
+</script>
+</body>
+</html>
